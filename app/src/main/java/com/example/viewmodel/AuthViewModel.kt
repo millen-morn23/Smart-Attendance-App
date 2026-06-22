@@ -103,4 +103,11 @@ class AuthViewModel(
             userRepository.updateProfilePhoto(path)
         }
     }
+
+    // Expose theme configuration state globally
+    val themeMode: StateFlow<String> = userRepository.themeMode
+
+    fun setThemeMode(mode: String) {
+        userRepository.setThemeMode(mode)
+    }
 }

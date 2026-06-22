@@ -4,8 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -48,7 +50,14 @@ class MainActivity : ComponentActivity() {
         val adminViewModel = ViewModelProvider(this, factory)[AdminViewModel::class.java]
 
         setContent {
-            MyApplicationTheme {
+            val themeModeState = authViewModel.themeMode.collectAsState()
+            val useDarkTheme = when (themeModeState.value) {
+                "DARK" -> true
+                "LIGHT" -> false
+                else -> isSystemInDarkTheme()
+            }
+
+            MyApplicationTheme(darkTheme = useDarkTheme) {
                 val navController = rememberNavController()
 
                 NavHost(
@@ -198,6 +207,7 @@ class MainActivity : ComponentActivity() {
                     composable(NavRoutes.SETTINGS) {
                         SettingsScreen(
                             studentViewModel = studentViewModel,
+                            authViewModel = authViewModel,
                             onBack = { navController.popBackStack() },
                             onLogoutClick = {
                                 authViewModel.logout()

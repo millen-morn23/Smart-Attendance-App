@@ -79,6 +79,15 @@ class UserRepository(
         _currentUser.value = updated
     }
 
+    // Persistent Theme Preference Management
+    private val _themeMode = MutableStateFlow(sharedPrefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM")
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
+    fun setThemeMode(mode: String) {
+        sharedPrefs.edit().putString("theme_mode", mode).apply()
+        _themeMode.value = mode
+    }
+
     fun getAllUsersFlow(): Flow<List<User>> = userDao.getAllUsersAsFlow()
 
     suspend fun deleteUser(user: User) {

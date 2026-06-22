@@ -843,6 +843,7 @@ fun StudentDashboardScreen(
                 3 -> {
                     SettingsScreen(
                         studentViewModel = studentViewModel,
+                        authViewModel = authViewModel,
                         onBack = { currentTab = 0 },
                         onLogoutClick = {
                             onLogoutClick()
@@ -1234,9 +1235,39 @@ fun SessionDetailScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Column {
-                                            Text(rec.studentName, fontWeight = FontWeight.Bold)
-                                            Text(rec.registerNo, style = MaterialTheme.typography.labelSmall)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            // Verification photo preview
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(44.dp)
+                                                    .clip(CircleShape)
+                                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (!rec.photoPath.isNullOrBlank()) {
+                                                    AsyncImage(
+                                                        model = rec.photoPath,
+                                                        contentDescription = "Verified photo signature",
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        contentScale = ContentScale.Crop
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Person,
+                                                        contentDescription = "No photo icon",
+                                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                                    )
+                                                }
+                                            }
+
+                                            Column {
+                                                Text(rec.studentName, fontWeight = FontWeight.Bold)
+                                                Text(rec.registerNo, style = MaterialTheme.typography.labelSmall)
+                                            }
                                         }
                                         Box(
                                             modifier = Modifier
@@ -1543,10 +1574,39 @@ fun AdminDashboardScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 Alignment.CenterVertically
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("${rec.studentName} (${rec.courseCode})", fontWeight = FontWeight.Bold)
-                                    Text("Device proximity: ${String.format("%.1f", rec.distanceMeters)}m", style = MaterialTheme.typography.bodySmall)
-                                    Text("Status: ${rec.status} | Synced: ${rec.isSynced}", style = MaterialTheme.typography.bodySmall)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (!rec.photoPath.isNullOrBlank()) {
+                                            AsyncImage(
+                                                model = rec.photoPath,
+                                                contentDescription = "Verified photo signature",
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.Person,
+                                                contentDescription = "No photo icon",
+                                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                    }
+
+                                    Column {
+                                        Text("${rec.studentName} (${rec.courseCode})", fontWeight = FontWeight.Bold)
+                                        Text("Device proximity: ${String.format("%.1f", rec.distanceMeters)}m", style = MaterialTheme.typography.bodySmall)
+                                        Text("Status: ${rec.status} | Synced: ${rec.isSynced}", style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
                                 IconButton(onClick = { adminViewModel.purgeRecord(rec) }) {
                                     Icon(Icons.Default.DoNotDisturbOn, contentDescription = "Acknowledge absent", tint = Color(0xFFF59E0B))
@@ -1582,6 +1642,36 @@ fun GpsVerificationScreen(
 
     var enteredPasscode by remember { mutableStateOf("") }
     var locationOverrideFar by remember { mutableStateOf(false) }
+
+    val capturedPhotoPath by studentViewModel.capturedPhotoPath.collectAsState()
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            try {
+                val file = java.io.File(context.cacheDir, "verify_${System.currentTimeMillis()}.jpg")
+                val out = java.io.FileOutputStream(file)
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+                out.flush()
+                out.close()
+                studentViewModel.setCapturedPhoto(file.absolutePath)
+                Toast.makeText(context, "Attendance verification selfie captured!", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to save verification image.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            cameraLauncher.launch(null)
+        } else {
+            Toast.makeText(context, "Camera permission is required to capture verification photo.", Toast.LENGTH_LONG).show()
+        }
+    }
 
     // Pulsing radar animations
     val infiniteTransition = rememberInfiniteTransition()
@@ -1758,6 +1848,167 @@ fun GpsVerificationScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Photo Verification Section
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp)
+                        .testTag("photo_verification_card"),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "Camera check",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Photo Identity Verification",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        if (capturedPhotoPath != null) {
+                            // Display the captured image
+                            Box(
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(2.dp, TealAccent, RoundedCornerShape(8.dp))
+                            ) {
+                                AsyncImage(
+                                    model = capturedPhotoPath,
+                                    contentDescription = "Captured Verification Photo",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                                            context,
+                                            android.Manifest.permission.CAMERA
+                                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                                        if (hasPermission) {
+                                            cameraLauncher.launch(null)
+                                        } else {
+                                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Retake Photo")
+                                }
+                                TextButton(
+                                    onClick = { studentViewModel.setCapturedPhoto(null) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
+                                ) {
+                                    Text("Clear")
+                                }
+                            }
+                        } else {
+                            // Prompt to take photo
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(120.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.CameraAlt,
+                                        contentDescription = "No photo captured",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        "No verification selfie taken yet",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                                            context,
+                                            android.Manifest.permission.CAMERA
+                                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                                        if (hasPermission) {
+                                            cameraLauncher.launch(null)
+                                        } else {
+                                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Access Camera")
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        val simulatedPhotos = listOf(
+                                            "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200",
+                                            "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200",
+                                            "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200"
+                                        )
+                                        val randomPhoto = simulatedPhotos.random()
+                                        studentViewModel.setCapturedPhoto(randomPhoto)
+                                        Toast.makeText(context, "Simulated selfie photo generated!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.weight(1.3f)
+                                ) {
+                                    Icon(Icons.Default.Face, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Simulate Selfie")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 if (uiState is StudentUiState.Error) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
@@ -1776,6 +2027,10 @@ fun GpsVerificationScreen(
                     onClick = {
                         if (enteredPasscode.isBlank()) {
                             Toast.makeText(context, "Enter passcode.", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (capturedPhotoPath == null) {
+                            Toast.makeText(context, "Identity Verification photo is required. Please capture a face photo first.", Toast.LENGTH_LONG).show()
                             return@Button
                         }
                         studentViewModel.verifyLocationAndSubmit(
@@ -2065,11 +2320,13 @@ fun NotificationsScreen(
 @Composable
 fun SettingsScreen(
     studentViewModel: StudentViewModel,
+    authViewModel: AuthViewModel,
     onBack: () -> Unit,
     onLogoutClick: () -> Unit
 ) {
     val context = LocalContext.current
     val isOnline by studentViewModel.isOnline.collectAsState(initial = true)
+    val themeMode by authViewModel.themeMode.collectAsState()
     var allowSiren by remember { mutableStateOf(true) }
     var locationSensitivityEnabled by remember { mutableStateOf(true) }
 
@@ -2114,6 +2371,88 @@ fun SettingsScreen(
                     checked = isOnline,
                     onCheckedChange = { studentViewModel.setNetworkStatus(it) }
                 )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("App Appearance Mode", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Select Mode",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            Triple("SYSTEM", "System", Icons.Default.Settings),
+                            Triple("LIGHT", "Light", Icons.Default.LightMode),
+                            Triple("DARK", "Dark", Icons.Default.DarkMode)
+                        ).forEach { (modeCode, modeLabel, modeIcon) ->
+                            val isSelected = themeMode == modeCode
+                            
+                            val containerColor = if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            }
+                            
+                            val contentColor = if (isSelected) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(containerColor)
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable {
+                                        authViewModel.setThemeMode(modeCode)
+                                        Toast.makeText(context, "$modeLabel theme preference loaded!", Toast.LENGTH_SHORT).show()
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = modeIcon,
+                                        contentDescription = null,
+                                        tint = contentColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = modeLabel,
+                                        color = contentColor,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
