@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Allow sharing directory files cached by the application -->
+    <cache-path name="cache_reports" path="." />
+    <external-path name="external_files" path="." />
+</paths>
