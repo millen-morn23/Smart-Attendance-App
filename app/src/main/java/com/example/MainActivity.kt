@@ -122,7 +122,13 @@ class MainActivity : ComponentActivity() {
                             },
                             onNavigateToProfile = { navController.navigate(NavRoutes.PROFILE) },
                             onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
-                            onNavigateToNotifications = { navController.navigate(NavRoutes.NOTIFICATIONS) }
+                            onNavigateToNotifications = { navController.navigate(NavRoutes.NOTIFICATIONS) },
+                            onLogoutClick = {
+                                authViewModel.logout()
+                                navController.navigate(NavRoutes.LOGIN) {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            }
                         )
                     }
 
