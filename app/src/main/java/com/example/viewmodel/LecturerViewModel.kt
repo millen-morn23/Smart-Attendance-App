@@ -39,12 +39,14 @@ class LecturerViewModel(
         durationMinutes: Int
     ) {
         viewModelScope.launch {
+            val trimmedPasscode = passcode.trim()
+            val finalCode = trimmedPasscode.ifBlank { (1000..9999).random().toString() }
             val session = AttendanceSession(
                 courseCode = courseCode,
                 courseTitle = courseTitle,
                 lecturerId = lecturerId,
                 lecturerName = lecturerName,
-                code = passcode.ifBlank { (1000..9999).random().toString() },
+                code = finalCode,
                 latitude = latitude,
                 longitude = longitude,
                 radiusMeters = radiusMeters,
@@ -54,11 +56,16 @@ class LecturerViewModel(
             val id = attendanceRepository.createSession(session)
             _createdSessionId.value = id
             
-            // Broadcast systems update
+            // Broadcast systems update to both seed students
             attendanceRepository.addNotification(
-                userId = "student123", // Student triggers
+                userId = "student123",
                 title = "New Lecture Session!",
-                message = "Prof. Charles Xavier opened attendance for $courseCode. Check in before it closes."
+                message = "Prof. Charles Xavier opened attendance for $courseCode. Access passcode is '$finalCode'. Check in before it closes."
+            )
+            attendanceRepository.addNotification(
+                userId = "student456",
+                title = "New Lecture Session!",
+                message = "Prof. Charles Xavier opened attendance for $courseCode. Access passcode is '$finalCode'. Check in before it closes."
             )
         }
     }

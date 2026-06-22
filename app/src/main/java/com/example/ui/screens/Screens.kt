@@ -1,6 +1,10 @@
 package com.example.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -591,12 +595,21 @@ fun StudentDashboardScreen(
                                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Face,
-                                        contentDescription = "Default face symbol",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(32.dp)
-                                    )
+                                    if (currentUser?.photoUrl != null) {
+                                        AsyncImage(
+                                            model = currentUser?.photoUrl,
+                                            contentDescription = "Profile Photo",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.Face,
+                                            contentDescription = "Default face symbol",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column {
@@ -1808,6 +1821,52 @@ fun ProfileScreen(
     var nameInput by remember { mutableStateOf(currentUser?.name ?: "") }
     var deptInput by remember { mutableStateOf(currentUser?.department ?: "") }
 
+    var showPhotoDialog by remember { mutableStateOf(false) }
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            authViewModel.updateProfilePhoto(it.toString())
+            Toast.makeText(context, "Profile photo updated from gallery!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    if (showPhotoDialog) {
+        AlertDialog(
+            onDismissRequest = { showPhotoDialog = false },
+            title = { Text("Update Profile Picture") },
+            text = { Text("Select an option to update your profile photo.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPhotoDialog = false
+                        launcher.launch("image/*")
+                    }
+                ) {
+                    Text("Choose from Gallery")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showPhotoDialog = false
+                        val simulatedPhotos = listOf(
+                            "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
+                            "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200",
+                            "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200"
+                        )
+                        val randomPhoto = simulatedPhotos.random()
+                        authViewModel.updateProfilePhoto(randomPhoto)
+                        Toast.makeText(context, "Simulated profile photo updated!", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Simulate Selfie")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -1836,19 +1895,16 @@ fun ProfileScreen(
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                     .clickable {
-                        // camera photo simulator triggered on tap
-                        val simulatedPath = "file:///android_asset/captured_photo_${System.currentTimeMillis()}.jpg"
-                        authViewModel.updateProfilePhoto(simulatedPath)
-                        Toast.makeText(context, "Profile Selfie Shot Captured & Synchronized!", Toast.LENGTH_SHORT).show()
+                        showPhotoDialog = true
                     },
                 contentAlignment = Alignment.Center
             ) {
                 if (currentUser?.photoUrl != null) {
-                    Icon(
-                        imageVector = Icons.Default.CameraAlt,
-                        contentDescription = "Captured Profile face",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(48.dp)
+                    AsyncImage(
+                        model = currentUser?.photoUrl,
+                        contentDescription = "Profile Photo",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
                 } else {
                     Icon(

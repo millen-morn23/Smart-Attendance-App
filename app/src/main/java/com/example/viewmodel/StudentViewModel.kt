@@ -73,8 +73,8 @@ class StudentViewModel(
         _studentUiState.value = StudentUiState.CheckingLocation
 
         // 1. Verify Passcode
-        if (session.code != enteredClassCode) {
-            _studentUiState.value = StudentUiState.Error("Incorrect 4-digit class verification code entered.")
+        if (session.code.trim() != enteredClassCode.trim()) {
+            _studentUiState.value = StudentUiState.Error("Incorrect 4-digit class verification code entered. Expected '${session.code.trim()}', but got '${enteredClassCode.trim()}'.")
             return
         }
 
